@@ -582,3 +582,11 @@ function astra_ai_create_analytics_table() {
     dbDelta($sql);
 }
 register_activation_hook(__FILE__, 'astra_ai_create_analytics_table');
+
+/**
+ * Initialize Admin Interfaces
+ */
+if (is_admin()) {
+    // Initialize the Site Builder
+    require_once ASTRA_AI_THEME_DIR . '/admin/site-builder.php';
+}
