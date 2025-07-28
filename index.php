@@ -94,7 +94,7 @@ get_header(); ?>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m0 0h7M9 18h7" />
                         </svg>
                         <span class="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" id="cart-count">
-                            <?php echo WC()->cart ? WC()->cart->get_cart_contents_count() : 0; ?>
+                            <?php echo (class_exists('WooCommerce') && WC()->cart) ? WC()->cart->get_cart_contents_count() : 0; ?>
                         </span>
                     </button>
                     

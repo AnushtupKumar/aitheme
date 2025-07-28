@@ -22,10 +22,14 @@
         init: function() {
             this.bindEvents();
             this.initRouter();
-            this.loadInitialData();
             this.initializeCart();
             this.setupIntersectionObserver();
             this.loadTemplates();
+            
+            // Hide loading screen after initialization
+            setTimeout(() => {
+                this.hideLoading();
+            }, 500);
         },
         
         // Load template files
@@ -33,10 +37,16 @@
             const templates = ['shop', 'about', 'contact', 'categories'];
             
             templates.forEach(template => {
-                fetch(`${astraAI.restUrl}astra-ai/v1/template/${template}`)
-                    .then(response => response.text())
+                fetch(`${window.location.origin}/wp-json/astra-ai/v1/template/${template}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.text();
+                    })
                     .then(html => {
                         this.templates[template] = html;
+                        console.log(`Template ${template} loaded successfully`);
                     })
                     .catch(error => {
                         console.log(`Error loading ${template} template:`, error);
@@ -55,7 +65,7 @@
             
             // Set initial route
             const hash = window.location.hash.substring(1);
-            if (hash) {
+            if (hash && ['home', 'shop', 'categories', 'about', 'contact'].includes(hash)) {
                 this.navigateTo(hash, false);
             } else {
                 this.navigateTo('home', false);
@@ -98,8 +108,6 @@
         
         // Load page content
         loadPageContent: function(route) {
-            const contentDiv = document.getElementById('spa-content');
-            
             switch(route) {
                 case 'home':
                     this.loadHomePage();
@@ -140,7 +148,6 @@
                 document.getElementById('spa-content').innerHTML = this.templates.shop;
                 this.initShopPage();
             } else {
-                // Fallback content
                 this.loadShopPageFallback();
             }
             this.hideLoading();
@@ -201,7 +208,9 @@
                     <section class="py-16 bg-white">
                         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div id="categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                <!-- Categories will be loaded here -->
+                                <div class="text-center py-12">
+                                    <p class="text-gray-600">Categories will be loaded here</p>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -212,7 +221,6 @@
         
         // Initialize categories page
         initCategoriesPage: function() {
-            this.loadCategories();
             this.bindCategoryEvents();
         },
         
@@ -343,6 +351,13 @@
                         this.performSearch(e.target.value);
                     }, 300);
                 });
+                
+                // Hide search results when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!searchInput.contains(e.target)) {
+                        this.hideSearchResults();
+                    }
+                });
             }
             
             // Cart icon click
@@ -360,18 +375,18 @@
             if (cartOverlay) cartOverlay.addEventListener('click', () => this.closeCartSidebar());
             
             // Load more products
-            const loadMoreBtn = document.getElementById('load-more-products');
-            if (loadMoreBtn) {
-                loadMoreBtn.addEventListener('click', () => {
+            document.addEventListener('click', (e) => {
+                if (e.target.id === 'load-more-products' || e.target.id === 'load-more-shop-products') {
                     this.loadMoreProducts();
-                });
-            }
+                }
+            });
             
             // Modal close
-            const modalClose = document.getElementById('modal-close');
-            const modalOverlay = document.getElementById('modal-overlay');
-            if (modalClose) modalClose.addEventListener('click', () => this.closeProductModal());
-            if (modalOverlay) modalOverlay.addEventListener('click', () => this.closeProductModal());
+            document.addEventListener('click', (e) => {
+                if (e.target.id === 'modal-close' || e.target.closest('#modal-close')) {
+                    this.closeProductModal();
+                }
+            });
         },
         
         // Bind shop page events
@@ -423,12 +438,12 @@
                     const content = toggle.nextElementSibling;
                     const icon = toggle.querySelector('svg');
                     
-                    if (content.classList.contains('hidden')) {
+                    if (content && content.classList.contains('hidden')) {
                         content.classList.remove('hidden');
-                        icon.style.transform = 'rotate(180deg)';
-                    } else {
+                        if (icon) icon.style.transform = 'rotate(180deg)';
+                    } else if (content) {
                         content.classList.add('hidden');
-                        icon.style.transform = 'rotate(0deg)';
+                        if (icon) icon.style.transform = 'rotate(0deg)';
                     }
                 });
             });
@@ -443,41 +458,21 @@
         
         // Load personalized recommendations
         loadPersonalizedRecommendations: function() {
-            if (!astraAI.enableAI) return;
-            
-            fetch(`${astraAI.restUrl}astra-ai/v1/recommendations/personalized`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.renderProducts(data, 'personalized-recommendations');
-            })
-            .catch(error => {
-                console.log('Error loading personalized recommendations:', error);
-                // Fallback to popular products
-                this.loadPopularProducts('personalized-recommendations');
-            });
+            // Load featured products as recommendations for now
+            this.loadFeaturedProducts('personalized-recommendations');
         },
         
         // Load featured products
-        loadFeaturedProducts: function() {
-            fetch(`${astraAI.restUrl}astra-ai/v1/products?per_page=8&featured=true`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.renderProducts(data, 'featured-products');
-            })
-            .catch(error => {
-                console.log('Error loading featured products:', error);
-                this.loadPopularProducts('featured-products');
-            });
+        loadFeaturedProducts: function(containerId = 'featured-products') {
+            fetch(`${window.location.origin}/wp-json/astra-ai/v1/products?per_page=8&featured=true`)
+                .then(response => response.json())
+                .then(data => {
+                    this.renderProducts(data, containerId);
+                })
+                .catch(error => {
+                    console.log('Error loading featured products:', error);
+                    this.loadSampleProducts(containerId);
+                });
         },
         
         // Load all products
@@ -485,32 +480,27 @@
             const container = document.getElementById(containerId);
             if (!container) return;
             
-            fetch(`${astraAI.restUrl}astra-ai/v1/products?per_page=12&page=${this.currentPage}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (this.currentPage === 1) {
-                    this.products = data;
-                } else {
-                    this.products = [...this.products, ...data];
-                }
-                this.renderProducts(this.products, containerId);
-                
-                // Hide loading states
-                const loading = document.getElementById('shop-loading');
-                if (loading) loading.classList.add('hidden');
-                
-                const productsGrid = document.getElementById(containerId);
-                if (productsGrid) productsGrid.classList.remove('hidden');
-            })
-            .catch(error => {
-                console.log('Error loading products:', error);
-                this.loadSampleProducts(containerId);
-            });
+            fetch(`${window.location.origin}/wp-json/astra-ai/v1/products?per_page=12&page=${this.currentPage}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (this.currentPage === 1) {
+                        this.products = data;
+                    } else {
+                        this.products = [...this.products, ...data];
+                    }
+                    this.renderProducts(this.products, containerId);
+                    
+                    // Hide loading states
+                    const loading = document.getElementById('shop-loading');
+                    if (loading) loading.classList.add('hidden');
+                    
+                    const productsGrid = document.getElementById(containerId);
+                    if (productsGrid) productsGrid.classList.remove('hidden');
+                })
+                .catch(error => {
+                    console.log('Error loading products:', error);
+                    this.loadSampleProducts(containerId);
+                });
         },
         
         // Load sample products as fallback
@@ -553,6 +543,11 @@
         renderProducts: function(products, containerId) {
             const container = document.getElementById(containerId);
             if (!container) return;
+            
+            if (!products || products.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">No products found</div>';
+                return;
+            }
             
             container.innerHTML = products.map(product => `
                 <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer product-card" data-product-id="${product.id}">
@@ -614,7 +609,9 @@
         addToCart: function(productId) {
             // Add cart functionality here
             console.log('Adding to cart:', productId);
+            this.cart.push({id: productId});
             this.updateCartCount();
+            this.showNotification('Product added to cart!', 'success');
         },
         
         // Update cart count
@@ -623,6 +620,22 @@
             if (cartCount) {
                 cartCount.textContent = this.cart.length;
             }
+        },
+        
+        // Show notification
+        showNotification: function(message, type = 'info') {
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
         },
         
         // Toggle cart sidebar
@@ -646,7 +659,6 @@
             const modal = document.getElementById('product-modal');
             if (modal) {
                 modal.classList.remove('hidden');
-                // Load product details
                 this.loadProductDetails(productId);
             }
         },
@@ -682,7 +694,7 @@
                                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Sample Product</h2>
                                 <p class="text-3xl font-bold text-primary mb-4">$99.99</p>
                                 <p class="text-gray-600 mb-6">This is a sample product description. In a real implementation, this would be loaded from your product database.</p>
-                                <button class="w-full bg-primary text-white py-3 px-6 rounded-lg hover:bg-primary/90 transition-colors">
+                                <button class="w-full bg-primary text-white py-3 px-6 rounded-lg hover:bg-primary/90 transition-colors" onclick="window.AstraAISPA.addToCart(${productId})">
                                     Add to Cart
                                 </button>
                             </div>
@@ -701,8 +713,8 @@
             
             // Simulate search results
             const results = [
-                { id: 1, name: 'Search Result 1', price: '$29.99' },
-                { id: 2, name: 'Search Result 2', price: '$39.99' },
+                { id: 1, name: `Search Result for "${query}" 1`, price: '$29.99' },
+                { id: 2, name: `Search Result for "${query}" 2`, price: '$39.99' },
             ];
             
             this.showSearchResults(results);
@@ -733,12 +745,47 @@
         // Setup intersection observer for lazy loading
         setupIntersectionObserver: function() {
             // Implementation for lazy loading and infinite scroll
+            if ('IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            // Implement lazy loading logic here
+                        }
+                    });
+                });
+                
+                // Observe elements that need lazy loading
+                document.querySelectorAll('[data-lazy]').forEach(el => {
+                    observer.observe(el);
+                });
+            }
         },
         
         // Load more products
         loadMoreProducts: function() {
             this.currentPage++;
             this.loadAllProducts();
+        },
+        
+        // Filter products (placeholder)
+        filterProducts: function() {
+            console.log('Filtering products...');
+        },
+        
+        // Sort products (placeholder)
+        sortProducts: function() {
+            console.log('Sorting products...');
+        },
+        
+        // Filter by category (placeholder)
+        filterByCategory: function(category) {
+            console.log('Filtering by category:', category);
+        },
+        
+        // Submit contact form (placeholder)
+        submitContactForm: function(form) {
+            console.log('Submitting contact form...');
+            this.showNotification('Message sent successfully!', 'success');
         }
     };
     

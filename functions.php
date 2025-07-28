@@ -590,3 +590,185 @@ if (is_admin()) {
     // Initialize the Site Builder
     require_once ASTRA_AI_THEME_DIR . '/admin/site-builder.php';
 }
+
+/**
+ * Register REST API endpoints for SPA
+ */
+add_action('rest_api_init', function () {
+    // Register template endpoint
+    register_rest_route('astra-ai/v1', '/template/(?P<template>[a-zA-Z0-9-]+)', array(
+        'methods' => 'GET',
+        'callback' => 'astra_ai_get_template',
+        'permission_callback' => '__return_true',
+        'args' => array(
+            'template' => array(
+                'validate_callback' => function($param, $request, $key) {
+                    return in_array($param, array('shop', 'about', 'contact', 'categories'));
+                }
+            ),
+        ),
+    ));
+    
+    // Register products endpoint
+    register_rest_route('astra-ai/v1', '/products', array(
+        'methods' => 'GET',
+        'callback' => 'astra_ai_get_products',
+        'permission_callback' => '__return_true',
+        'args' => array(
+            'per_page' => array(
+                'default' => 12,
+                'sanitize_callback' => 'absint',
+            ),
+            'page' => array(
+                'default' => 1,
+                'sanitize_callback' => 'absint',
+            ),
+            'featured' => array(
+                'default' => false,
+                'sanitize_callback' => 'rest_sanitize_boolean',
+            ),
+        ),
+    ));
+});
+
+/**
+ * Get template content
+ */
+function astra_ai_get_template($request) {
+    $template = $request['template'];
+    $template_file = ASTRA_AI_THEME_DIR . "/templates/page-{$template}.php";
+    
+    if (!file_exists($template_file)) {
+        return new WP_Error('template_not_found', 'Template not found', array('status' => 404));
+    }
+    
+    ob_start();
+    include $template_file;
+    $content = ob_get_clean();
+    
+    return rest_ensure_response($content);
+}
+
+/**
+ * Get products for SPA
+ */
+function astra_ai_get_products($request) {
+    $per_page = $request['per_page'];
+    $page = $request['page'];
+    $featured = $request['featured'];
+    
+    // Check if WooCommerce is active
+    if (!class_exists('WooCommerce')) {
+        // Return sample products if WooCommerce is not active
+        return rest_ensure_response(array(
+            array(
+                'id' => 1,
+                'name' => 'Sample Product 1',
+                'price' => '$99.99',
+                'image' => 'https://via.placeholder.com/300x300/2563eb/ffffff?text=Product+1',
+                'rating' => 4.5,
+                'url' => '#',
+            ),
+            array(
+                'id' => 2,
+                'name' => 'Sample Product 2',
+                'price' => '$149.99',
+                'image' => 'https://via.placeholder.com/300x300/10b981/ffffff?text=Product+2',
+                'rating' => 4.8,
+                'url' => '#',
+            ),
+            array(
+                'id' => 3,
+                'name' => 'Sample Product 3',
+                'price' => '$79.99',
+                'image' => 'https://via.placeholder.com/300x300/f59e0b/ffffff?text=Product+3',
+                'rating' => 4.3,
+                'url' => '#',
+            ),
+            array(
+                'id' => 4,
+                'name' => 'Sample Product 4',
+                'price' => '$199.99',
+                'image' => 'https://via.placeholder.com/300x300/8b5cf6/ffffff?text=Product+4',
+                'rating' => 4.6,
+                'url' => '#',
+            ),
+        ));
+    }
+    
+    $args = array(
+        'post_type' => 'product',
+        'post_status' => 'publish',
+        'posts_per_page' => $per_page,
+        'paged' => $page,
+    );
+    
+    if ($featured) {
+        $args['meta_query'] = array(
+            array(
+                'key' => '_featured',
+                'value' => 'yes'
+            )
+        );
+    }
+    
+    $products = get_posts($args);
+    $formatted_products = array();
+    
+    foreach ($products as $product) {
+        $wc_product = wc_get_product($product->ID);
+        if ($wc_product) {
+            $image_id = get_post_thumbnail_id($product->ID);
+            $image_url = $image_id ? wp_get_attachment_image_src($image_id, 'medium')[0] : '';
+            
+            $formatted_products[] = array(
+                'id' => $product->ID,
+                'name' => $product->post_title,
+                'price' => $wc_product->get_price_html(),
+                'image' => $image_url ?: 'https://via.placeholder.com/300x300/e5e7eb/6b7280?text=Product',
+                'rating' => $wc_product->get_average_rating(),
+                'url' => get_permalink($product->ID),
+            );
+        }
+    }
+    
+    // If no products found, return sample products
+    if (empty($formatted_products)) {
+        return rest_ensure_response(array(
+            array(
+                'id' => 1,
+                'name' => 'Premium Wireless Headphones',
+                'price' => '$199.99',
+                'image' => 'https://via.placeholder.com/300x300/2563eb/ffffff?text=Headphones',
+                'rating' => 4.5,
+                'url' => '#',
+            ),
+            array(
+                'id' => 2,
+                'name' => 'Smart Fitness Watch',
+                'price' => '$299.99',
+                'image' => 'https://via.placeholder.com/300x300/10b981/ffffff?text=Watch',
+                'rating' => 4.8,
+                'url' => '#',
+            ),
+            array(
+                'id' => 3,
+                'name' => 'Eco-Friendly Water Bottle',
+                'price' => '$24.99',
+                'image' => 'https://via.placeholder.com/300x300/f59e0b/ffffff?text=Bottle',
+                'rating' => 4.3,
+                'url' => '#',
+            ),
+            array(
+                'id' => 4,
+                'name' => 'Wireless Charging Pad',
+                'price' => '$49.99',
+                'image' => 'https://via.placeholder.com/300x300/8b5cf6/ffffff?text=Charger',
+                'rating' => 4.6,
+                'url' => '#',
+            ),
+        ));
+    }
+    
+    return rest_ensure_response($formatted_products);
+}
