@@ -339,6 +339,13 @@
                 mobileMenuButton.addEventListener('click', () => {
                     mobileMenu.classList.toggle('hidden');
                 });
+                
+                // Close mobile menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!mobileMenuButton.contains(e.target) && !mobileMenu.contains(e.target)) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                });
             }
             
             // Search functionality
@@ -363,7 +370,8 @@
             // Cart icon click
             const cartIcon = document.getElementById('cart-icon');
             if (cartIcon) {
-                cartIcon.addEventListener('click', () => {
+                cartIcon.addEventListener('click', (e) => {
+                    e.preventDefault();
                     this.toggleCartSidebar();
                 });
             }
@@ -377,6 +385,7 @@
             // Load more products
             document.addEventListener('click', (e) => {
                 if (e.target.id === 'load-more-products' || e.target.id === 'load-more-shop-products') {
+                    e.preventDefault();
                     this.loadMoreProducts();
                 }
             });
@@ -385,6 +394,23 @@
             document.addEventListener('click', (e) => {
                 if (e.target.id === 'modal-close' || e.target.closest('#modal-close')) {
                     this.closeProductModal();
+                }
+                
+                // Close modal when clicking overlay
+                if (e.target.id === 'product-modal') {
+                    this.closeProductModal();
+                }
+            });
+            
+            // ESC key to close modals
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    this.closeProductModal();
+                    this.closeCartSidebar();
+                    const mobileMenu = document.getElementById('mobile-menu');
+                    if (mobileMenu) {
+                        mobileMenu.classList.add('hidden');
+                    }
                 }
             });
         },
@@ -465,7 +491,12 @@
         // Load featured products
         loadFeaturedProducts: function(containerId = 'featured-products') {
             fetch(`${window.location.origin}/wp-json/astra-ai/v1/products?per_page=8&featured=true`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     this.renderProducts(data, containerId);
                 })
@@ -481,7 +512,12 @@
             if (!container) return;
             
             fetch(`${window.location.origin}/wp-json/astra-ai/v1/products?per_page=12&page=${this.currentPage}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (this.currentPage === 1) {
                         this.products = data;

@@ -55,12 +55,8 @@ function astra_ai_scripts() {
     // Enqueue main stylesheet
     wp_enqueue_style('astra-ai-style', get_stylesheet_uri(), array(), ASTRA_AI_VERSION);
     
-    // Enqueue React and ReactDOM from CDN for SPA functionality
-    wp_enqueue_script('react', 'https://unpkg.com/react@18/umd/react.production.min.js', array(), '18.0.0', true);
-    wp_enqueue_script('react-dom', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', array('react'), '18.0.0', true);
-    
-    // Enqueue main SPA script
-    wp_enqueue_script('astra-ai-spa', ASTRA_AI_THEME_URL . '/assets/js/spa-app.js', array('react', 'react-dom', 'jquery'), ASTRA_AI_VERSION, true);
+    // Enqueue main SPA script (vanilla JavaScript, no React needed)
+    wp_enqueue_script('astra-ai-spa', ASTRA_AI_THEME_URL . '/assets/js/spa-app.js', array('jquery'), ASTRA_AI_VERSION, true);
     
     // Enqueue AI features script
     wp_enqueue_script('astra-ai-features', ASTRA_AI_THEME_URL . '/assets/js/ai-features.js', array('jquery'), ASTRA_AI_VERSION, true);
@@ -72,8 +68,8 @@ function astra_ai_scripts() {
         'wooRestUrl' => rest_url('wc/v3/'),
         'nonce' => wp_create_nonce('astra_ai_nonce'),
         'isUserLoggedIn' => is_user_logged_in(),
-        'cartUrl' => wc_get_cart_url(),
-        'checkoutUrl' => wc_get_checkout_url(),
+        'cartUrl' => class_exists('WooCommerce') ? wc_get_cart_url() : '#',
+        'checkoutUrl' => class_exists('WooCommerce') ? wc_get_checkout_url() : '#',
         'aiApiKey' => get_option('astra_ai_api_key', ''),
         'enableAI' => get_option('astra_ai_enable_features', true),
     ));
